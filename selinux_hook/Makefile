@@ -1,4 +1,4 @@
-SELINUX_VERSION := 1.1.4
+SELINUX_VERSION := 1.1.5
 
 ifndef KP_DIR
     KP_DIR = ../KernelPatch
@@ -18,13 +18,15 @@ endif
 ifdef TARGET_COMPILE
     CC := $(TARGET_COMPILE)gcc
     LD := $(TARGET_COMPILE)ld
+    OBJCOPY := $(TARGET_COMPILE)objcopy
 else ifdef NDK_PATH
     CC := $(NDK_PATH)/aarch64-linux-android31-clang
     LD := $(NDK_PATH)/ld.lld
+    OBJCOPY := $(NDK_PATH)/llvm-objcopy
 endif
 
-CFLAGS = -Wall -O2 -fno-PIC -fno-asynchronous-unwind-tables -fno-stack-protector -fno-common
-CFLAGS += -fno-builtin-strlen -fno-builtin-memcpy
+CFLAGS = -Wall -O2 -fno-PIC -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-stack-protector -fno-common
+CFLAGS += -fno-builtin-strlen -fno-builtin-memcpy -fno-exceptions
 CFLAGS += -DSELINUX_VERSION=\"$(SELINUX_VERSION)\"
 CFLAGS += -std=gnu99
 
@@ -37,7 +39,10 @@ objs := selinux_hook.o
 all: selinux_hook_$(SELINUX_VERSION).kpm
 
 selinux_hook_$(SELINUX_VERSION).kpm: ${objs}
-	${CC} -r -nostdlib -o $@ $^
+	${CC} -r -nostdlib -Wl,--no-eh-frame-hdr -o $@ $^
+ifneq ($(strip $(OBJCOPY)),)
+	${OBJCOPY} --remove-section=.eh_frame --remove-section=.eh_frame_hdr --remove-section=.rela.eh_frame $@
+endif
 
 %.o: %.c
 	${CC} $(CFLAGS) $(INCLUDE_FLAGS) -c -o $@ $<
