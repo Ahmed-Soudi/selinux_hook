@@ -26,7 +26,7 @@
 
 KPM_NAME("selinux_magisk_access_filter");
 #ifndef SELINUX_VERSION
-#define SELINUX_VERSION "1.1.7-diag3"
+#define SELINUX_VERSION "1.1.7-diag4"
 #endif
 KPM_VERSION(SELINUX_VERSION);
 KPM_LICENSE("All rights reserved.");
@@ -4136,13 +4136,10 @@ static long init(const char *args, const char *event, void *__user r)
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag3] init entered\n");
+    pr_info("[selinux_hook_diag4] init entered\n");
 
     fill_clean_status_bytes(g_clean_status_bytes);
-    pr_info("[selinux_hook_diag3] clean status initialized\n");
-
     resolve_required_symbols_once();
-    pr_info("[selinux_hook_diag3] symbol cache completed\n");
 
     g_raw_spin_lock_fn =
         (raw_spin_lock_fn_t)lookup_name_optional_suffix("_raw_spin_lock");
@@ -4157,19 +4154,16 @@ static long init(const char *args, const char *event, void *__user r)
 
     copy_to_user_nofault_fn =
         (void *)lookup_name_optional_suffix("copy_to_user_nofault");
-
     if (copy_to_user_nofault_fn) {
         g_copy_to_user_name = "copy_to_user_nofault";
     } else {
         copy_to_user_raw_fn =
             (void *)lookup_name_optional_suffix("_copy_to_user");
-
         if (copy_to_user_raw_fn) {
             g_copy_to_user_name = "_copy_to_user";
         } else {
             copy_to_user_raw_fn =
                 (void *)lookup_name_optional_suffix("__copy_to_user");
-
             if (copy_to_user_raw_fn)
                 g_copy_to_user_name = "__copy_to_user";
         }
@@ -4181,12 +4175,10 @@ static long init(const char *args, const char *event, void *__user r)
 
     vfree_fn = (void *)lookup_name_optional_suffix("vfree");
     init_task_ptr = lookup_name_optional_suffix("init_task");
-
     filp_open_fn = (void *)lookup_name_optional_suffix("filp_open");
     filp_close_fn = (void *)lookup_name_optional_suffix("filp_close");
     kernel_read_fn = (void *)lookup_name_optional_suffix("kernel_read");
     vfs_llseek_fn = (void *)lookup_name_optional_suffix("vfs_llseek");
-
     g_selinux_state = lookup_name_optional_suffix("selinux_state");
 
     security_load_policy_fn =
@@ -4203,51 +4195,65 @@ static long init(const char *args, const char *event, void *__user r)
         (void *)lookup_name_optional_suffix("policydb_read");
     policydb_destroy_fn =
         (void *)lookup_name_optional_suffix("policydb_destroy");
-
     flex_array_get_fn =
         (void *)lookup_name_optional_suffix("flex_array_get");
-
     avtab_search_node_fn =
         (void *)lookup_name_optional_suffix("avtab_search_node");
-
     avtab_search_node_next_fn =
         (void *)lookup_name_optional_suffix("avtab_search_node_next");
-
     cond_compute_av_fn =
         (void *)lookup_name_optional_suffix("cond_compute_av");
-
     constraint_expr_eval_fn =
         (void *)lookup_name_optional_suffix("constraint_expr_eval");
-
     type_attribute_bounds_av_fn =
         (void *)lookup_name_optional_suffix("type_attribute_bounds_av");
-
     selinux_policy_cancel_fn =
         (void *)lookup_name_optional_suffix("selinux_policy_cancel");
     selinux_policy_cancel_compat_fn =
         (void *)selinux_policy_cancel_fn;
-
     sidtab_cancel_convert_fn =
         (void *)lookup_name_optional_suffix("sidtab_cancel_convert");
-
     security_read_policy_fn =
         (void *)lookup_name_optional_suffix("security_read_policy");
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag3] helper pointer resolution completed\n");
+    pr_info("[selinux_hook_diag4] helper resolution completed\n");
 
     if (!security_read_policy_fn) {
-        pr_warn("[selinux_hook_diag3] security_read_policy missing; snapshot skipped\n");
-    } else if (selinux_49_compat_path()) {
-        pr_warn("[selinux_hook_diag3] 4.9 compatibility path; snapshot skipped\n");
-    } else {
-        pr_info("[selinux_hook_diag3] about to call snapshot_clean_policy(module_init)\n");
-        snapshot_clean_policy("module_init");
-        pr_info("[selinux_hook_diag3] snapshot_clean_policy returned\n");
+        pr_warn("[selinux_hook_diag4] security_read_policy missing; cannot continue test\n");
+        return -ENOENT;
     }
 
-    pr_info("[selinux_hook_diag3] NO hooks installed\n");
+    if (!selinux_49_compat_path()) {
+        pr_info("[selinux_hook_diag4] about to snapshot clean policy\n");
+        snapshot_clean_policy("module_init");
+        pr_info("[selinux_hook_diag4] snapshot returned\n");
+    }
+
+    /*
+     * DIAG4: install ONLY the first normal inline hook from the real module:
+     * security_read_policy. No other hooks are installed.
+     */
+    if (!selinux_49_compat_path()) {
+        int argc = selinux_state_arg_required() ? 3 : 2;
+
+        g_funcs[g_hooks++] = (void *)security_read_policy_fn;
+        pr_info("[selinux_hook_diag4] about to hook security_read_policy argc=%d\n",
+                argc);
+
+        if (selinux_state_arg_required())
+            hook_wrap((void *)security_read_policy_fn, 3,
+                      before_security_read_policy_compat, NULL, NULL);
+        else
+            hook_wrap((void *)security_read_policy_fn, 2,
+                      before_security_read_policy, NULL, NULL);
+
+        pr_info("[selinux_hook_diag4] security_read_policy hook installed\n");
+    }
+
+    pr_info("[selinux_hook_diag4] init complete; exactly %d hook(s) installed\n",
+            g_hooks);
     return 0;
 }
 
