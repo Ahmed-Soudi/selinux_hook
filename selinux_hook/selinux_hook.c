@@ -26,7 +26,7 @@
 
 KPM_NAME("selinux_magisk_access_filter");
 #ifndef SELINUX_VERSION
-#define SELINUX_VERSION "1.1.7-diag2"
+#define SELINUX_VERSION "1.1.7-diag3"
 #endif
 KPM_VERSION(SELINUX_VERSION);
 KPM_LICENSE("All rights reserved.");
@@ -4136,10 +4136,13 @@ static long init(const char *args, const char *event, void *__user r)
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag2] init entered\n");
+    pr_info("[selinux_hook_diag3] init entered\n");
+
+    fill_clean_status_bytes(g_clean_status_bytes);
+    pr_info("[selinux_hook_diag3] clean status initialized\n");
 
     resolve_required_symbols_once();
-    pr_info("[selinux_hook_diag2] symbol cache completed\n");
+    pr_info("[selinux_hook_diag3] symbol cache completed\n");
 
     g_raw_spin_lock_fn =
         (raw_spin_lock_fn_t)lookup_name_optional_suffix("_raw_spin_lock");
@@ -4232,23 +4235,19 @@ static long init(const char *args, const char *event, void *__user r)
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag2] helper pointer resolution completed\n");
+    pr_info("[selinux_hook_diag3] helper pointer resolution completed\n");
 
-    log_symbol_addr("selinux_state", g_selinux_state);
-    log_symbol_addr("security_read_policy",
-                    (void *)security_read_policy_fn);
-    log_symbol_addr("security_context_to_sid",
-                    (void *)security_context_to_sid_fn);
-    log_symbol_addr("security_load_policy",
-                    (void *)security_load_policy_fn);
-    log_symbol_addr("policydb_read",
-                    (void *)policydb_read_fn);
-    log_symbol_addr("policydb_destroy",
-                    (void *)policydb_destroy_fn);
+    if (!security_read_policy_fn) {
+        pr_warn("[selinux_hook_diag3] security_read_policy missing; snapshot skipped\n");
+    } else if (selinux_49_compat_path()) {
+        pr_warn("[selinux_hook_diag3] 4.9 compatibility path; snapshot skipped\n");
+    } else {
+        pr_info("[selinux_hook_diag3] about to call snapshot_clean_policy(module_init)\n");
+        snapshot_clean_policy("module_init");
+        pr_info("[selinux_hook_diag3] snapshot_clean_policy returned\n");
+    }
 
-    pr_info("[selinux_hook_diag2] diagnostics completed\n");
-    pr_info("[selinux_hook_diag2] NO snapshot and NO hooks installed\n");
-
+    pr_info("[selinux_hook_diag3] NO hooks installed\n");
     return 0;
 }
 
