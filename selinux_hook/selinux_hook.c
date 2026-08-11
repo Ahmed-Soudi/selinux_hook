@@ -26,7 +26,7 @@
 
 KPM_NAME("selinux_magisk_access_filter");
 #ifndef SELINUX_VERSION
-#define SELINUX_VERSION "1.1.7-diag7a"
+#define SELINUX_VERSION "1.1.7-diag8a"
 #endif
 KPM_VERSION(SELINUX_VERSION);
 KPM_LICENSE("All rights reserved.");
@@ -4132,11 +4132,10 @@ static void before_security_read_policy_compat(hook_fargs3_t *a, void *u)
 
 
 /*
- * DIAG7A:
- * No-op after-hook for sel_mmap_handle_status.
- * It intentionally does not inspect or modify any arguments or return value.
+ * DIAG8A:
+ * No-op pre-hook for selinux_status_update_seqlock.
  */
-static void after_sel_mmap_handle_status_diag7a(hook_fargs2_t *a, void *u)
+static void before_selinux_status_update_seqlock_diag8a(hook_fargs1_t *a, void *u)
 {
     (void)a;
     (void)u;
@@ -4150,7 +4149,7 @@ static long init(const char *args, const char *event, void *__user r)
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag7a] init entered\n");
+    pr_info("[selinux_hook_diag8a] init entered\n");
 
     fill_clean_status_bytes(g_clean_status_bytes);
     resolve_required_symbols_once();
@@ -4232,35 +4231,36 @@ static long init(const char *args, const char *event, void *__user r)
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag7a] helper resolution completed\n");
+    pr_info("[selinux_hook_diag8a] helper resolution completed\n");
 
     if (security_read_policy_fn && !selinux_49_compat_path()) {
-        pr_info("[selinux_hook_diag7a] about to snapshot clean policy\n");
+        pr_info("[selinux_hook_diag8a] about to snapshot clean policy\n");
         snapshot_clean_policy("module_init");
-        pr_info("[selinux_hook_diag7a] snapshot returned\n");
+        pr_info("[selinux_hook_diag8a] snapshot returned\n");
     }
 
-    pr_warn("[selinux_hook_diag7a] M127F compat: skipping security_read_policy inline hook\n");
-    pr_warn("[selinux_hook_diag7a] M127F compat: skipping simple_read_from_buffer inline hook\n");
-    pr_warn("[selinux_hook_diag7a] M127F compat: skipping sel_read_handle_status inline hook\n");
+    pr_warn("[selinux_hook_diag8a] M127F compat: skipping security_read_policy inline hook\n");
+    pr_warn("[selinux_hook_diag8a] M127F compat: skipping simple_read_from_buffer inline hook\n");
+    pr_warn("[selinux_hook_diag8a] M127F compat: skipping sel_read_handle_status inline hook\n");
+    pr_warn("[selinux_hook_diag8a] M127F compat: skipping sel_mmap_handle_status inline hook\n");
 
-    addr = (unsigned long)lookup_name_optional_suffix("sel_mmap_handle_status");
+    addr = (unsigned long)lookup_name_optional_suffix("selinux_status_update_seqlock");
     if (!addr) {
-        pr_warn("[selinux_hook_diag7a] sel_mmap_handle_status missing; cannot continue test\n");
+        pr_warn("[selinux_hook_diag8a] selinux_status_update_seqlock missing; cannot continue test\n");
         return -ENOENT;
     }
 
     g_funcs[g_hooks++] = (void *)addr;
 
-    pr_info("[selinux_hook_diag7a] about to install NO-OP sel_mmap_handle_status hook argc=2\n");
+    pr_info("[selinux_hook_diag8a] about to install NO-OP selinux_status_update_seqlock hook argc=1\n");
 
-    hook_wrap((void *)addr, 2,
+    hook_wrap((void *)addr, 1,
+              before_selinux_status_update_seqlock_diag8a,
               NULL,
-              after_sel_mmap_handle_status_diag7a,
               NULL);
 
-    pr_info("[selinux_hook_diag7a] NO-OP sel_mmap_handle_status hook installed\n");
-    pr_info("[selinux_hook_diag7a] init complete; exactly %d hook(s) installed\n",
+    pr_info("[selinux_hook_diag8a] NO-OP selinux_status_update_seqlock hook installed\n");
+    pr_info("[selinux_hook_diag8a] init complete; exactly %d hook(s) installed\n",
             g_hooks);
 
     return 0;
