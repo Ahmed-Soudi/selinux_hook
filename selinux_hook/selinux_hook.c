@@ -26,7 +26,7 @@
 
 KPM_NAME("selinux_magisk_access_filter");
 #ifndef SELINUX_VERSION
-#define SELINUX_VERSION "1.1.7-diag5"
+#define SELINUX_VERSION "1.1.7-diag5a"
 #endif
 KPM_VERSION(SELINUX_VERSION);
 KPM_LICENSE("All rights reserved.");
@@ -4130,6 +4130,24 @@ static void before_security_read_policy_compat(hook_fargs3_t *a, void *u)
     before_security_read_policy_common(a, (void **)a->arg1, (size_t *)a->arg2);
 }
 
+
+/*
+ * DIAG5A:
+ * No-op callbacks for simple_read_from_buffer.
+ * They intentionally do not inspect or modify arguments or return values.
+ */
+static void before_simple_read_from_buffer_diag5a(hook_fargs5_t *a, void *u)
+{
+    (void)a;
+    (void)u;
+}
+
+static void after_simple_read_from_buffer_diag5a(hook_fargs5_t *a, void *u)
+{
+    (void)a;
+    (void)u;
+}
+
 static long init(const char *args, const char *event, void *__user r)
 {
     unsigned long addr;
@@ -4138,7 +4156,7 @@ static long init(const char *args, const char *event, void *__user r)
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag5] init entered\n");
+    pr_info("[selinux_hook_diag5a] init entered\n");
 
     fill_clean_status_bytes(g_clean_status_bytes);
     resolve_required_symbols_once();
@@ -4220,44 +4238,33 @@ static long init(const char *args, const char *event, void *__user r)
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag5] helper resolution completed\n");
+    pr_info("[selinux_hook_diag5a] helper resolution completed\n");
 
     if (security_read_policy_fn && !selinux_49_compat_path()) {
-        pr_info("[selinux_hook_diag5] about to snapshot clean policy\n");
+        pr_info("[selinux_hook_diag5a] about to snapshot clean policy\n");
         snapshot_clean_policy("module_init");
-        pr_info("[selinux_hook_diag5] snapshot returned\n");
+        pr_info("[selinux_hook_diag5a] snapshot returned\n");
     }
 
-    /*
-     * M127F adaptation path under test:
-     * security_read_policy inline hook is deliberately SKIPPED because diag4
-     * and diag4a proved that merely installing that hook reboots this Samsung
-     * 4.19 kernel, even with a no-op callback.
-     */
-    pr_warn("[selinux_hook_diag5] M127F compat: skipping security_read_policy inline hook\n");
+    pr_warn("[selinux_hook_diag5a] M127F compat: skipping security_read_policy inline hook\n");
 
-    /*
-     * Install ONLY the next hook from the original module:
-     * simple_read_from_buffer.
-     */
     addr = (unsigned long)lookup_name_optional_suffix("simple_read_from_buffer");
-    if (addr) {
-        g_funcs[g_hooks++] = (void *)addr;
-        WRITE_ONCE(g_simple_read_from_buffer_hooked, true);
-
-        pr_info("[selinux_hook_diag5] about to hook simple_read_from_buffer argc=5\n");
-
-        hook_wrap((void *)addr, 5,
-                  before_simple_read_from_buffer,
-                  after_simple_read_from_buffer,
-                  NULL);
-
-        pr_info("[selinux_hook_diag5] simple_read_from_buffer hook installed\n");
-    } else {
-        pr_warn("[selinux_hook_diag5] simple_read_from_buffer missing; test cannot install hook\n");
+    if (!addr) {
+        pr_warn("[selinux_hook_diag5a] simple_read_from_buffer missing; cannot continue test\n");
+        return -ENOENT;
     }
 
-    pr_info("[selinux_hook_diag5] init complete; exactly %d hook(s) installed\n",
+    g_funcs[g_hooks++] = (void *)addr;
+
+    pr_info("[selinux_hook_diag5a] about to install NO-OP simple_read_from_buffer hook argc=5\n");
+
+    hook_wrap((void *)addr, 5,
+              before_simple_read_from_buffer_diag5a,
+              after_simple_read_from_buffer_diag5a,
+              NULL);
+
+    pr_info("[selinux_hook_diag5a] NO-OP simple_read_from_buffer hook installed\n");
+    pr_info("[selinux_hook_diag5a] init complete; exactly %d hook(s) installed\n",
             g_hooks);
 
     return 0;
