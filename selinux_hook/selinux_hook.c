@@ -26,7 +26,7 @@
 
 KPM_NAME("selinux_magisk_access_filter");
 #ifndef SELINUX_VERSION
-#define SELINUX_VERSION "1.1.7-diag4a"
+#define SELINUX_VERSION "1.1.7-diag5"
 #endif
 KPM_VERSION(SELINUX_VERSION);
 KPM_LICENSE("All rights reserved.");
@@ -4130,27 +4130,15 @@ static void before_security_read_policy_compat(hook_fargs3_t *a, void *u)
     before_security_read_policy_common(a, (void **)a->arg1, (size_t *)a->arg2);
 }
 
-
-/*
- * DIAG4A:
- * Harmless security_read_policy pre-hook callback.
- * It intentionally does not inspect, dereference, modify, or skip any argument.
- * This isolates KPatch inline-hook/trampoline compatibility from the real
- * before_security_read_policy_compat() callback logic.
- */
-static void before_security_read_policy_diag4a(hook_fargs3_t *a, void *u)
-{
-    (void)a;
-    (void)u;
-}
-
 static long init(const char *args, const char *event, void *__user r)
 {
+    unsigned long addr;
+
     (void)args;
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag4a] init entered\n");
+    pr_info("[selinux_hook_diag5] init entered\n");
 
     fill_clean_status_bytes(g_clean_status_bytes);
     resolve_required_symbols_once();
@@ -4232,45 +4220,46 @@ static long init(const char *args, const char *event, void *__user r)
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag4a] helper resolution completed\n");
+    pr_info("[selinux_hook_diag5] helper resolution completed\n");
 
-    if (!security_read_policy_fn) {
-        pr_warn("[selinux_hook_diag4a] security_read_policy missing; cannot continue test\n");
-        return -ENOENT;
-    }
-
-    if (!selinux_49_compat_path()) {
-        pr_info("[selinux_hook_diag4a] about to snapshot clean policy\n");
+    if (security_read_policy_fn && !selinux_49_compat_path()) {
+        pr_info("[selinux_hook_diag5] about to snapshot clean policy\n");
         snapshot_clean_policy("module_init");
-        pr_info("[selinux_hook_diag4a] snapshot returned\n");
+        pr_info("[selinux_hook_diag5] snapshot returned\n");
     }
 
     /*
-     * Install the same security_read_policy inline hook as diag4, but use a
-     * no-op callback. If this still reboots, the problem is the hook/trampoline
-     * itself on Samsung 4.19, not the real callback logic.
+     * M127F adaptation path under test:
+     * security_read_policy inline hook is deliberately SKIPPED because diag4
+     * and diag4a proved that merely installing that hook reboots this Samsung
+     * 4.19 kernel, even with a no-op callback.
      */
-    if (!selinux_49_compat_path()) {
-        int argc = selinux_state_arg_required() ? 3 : 2;
+    pr_warn("[selinux_hook_diag5] M127F compat: skipping security_read_policy inline hook\n");
 
-        if (argc != 3) {
-            pr_warn("[selinux_hook_diag4a] expected 3-arg ABI on this test, got argc=%d\n",
-                    argc);
-            return -EINVAL;
-        }
+    /*
+     * Install ONLY the next hook from the original module:
+     * simple_read_from_buffer.
+     */
+    addr = (unsigned long)lookup_name_optional_suffix("simple_read_from_buffer");
+    if (addr) {
+        g_funcs[g_hooks++] = (void *)addr;
+        WRITE_ONCE(g_simple_read_from_buffer_hooked, true);
 
-        g_funcs[g_hooks++] = (void *)security_read_policy_fn;
+        pr_info("[selinux_hook_diag5] about to hook simple_read_from_buffer argc=5\n");
 
-        pr_info("[selinux_hook_diag4a] about to install NO-OP security_read_policy hook argc=3\n");
+        hook_wrap((void *)addr, 5,
+                  before_simple_read_from_buffer,
+                  after_simple_read_from_buffer,
+                  NULL);
 
-        hook_wrap((void *)security_read_policy_fn, 3,
-                  before_security_read_policy_diag4a, NULL, NULL);
-
-        pr_info("[selinux_hook_diag4a] NO-OP security_read_policy hook installed\n");
+        pr_info("[selinux_hook_diag5] simple_read_from_buffer hook installed\n");
+    } else {
+        pr_warn("[selinux_hook_diag5] simple_read_from_buffer missing; test cannot install hook\n");
     }
 
-    pr_info("[selinux_hook_diag4a] init complete; exactly %d hook(s) installed\n",
+    pr_info("[selinux_hook_diag5] init complete; exactly %d hook(s) installed\n",
             g_hooks);
+
     return 0;
 }
 
