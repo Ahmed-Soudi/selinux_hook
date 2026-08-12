@@ -4132,10 +4132,10 @@ static void before_security_read_policy_compat(hook_fargs3_t *a, void *u)
 
 
 /*
- * DIAG9A:
- * No-op pre-hook for selinux_status_update_policyload.
+ * DIAG10A:
+ * No-op pre-hook for security_setprocattr on Linux 4.19.
  */
-static void before_selinux_status_update_policyload_diag9a(hook_fargs4_t *a, void *u)
+static void before_security_setprocattr_diag10a(hook_fargs3_t *a, void *u)
 {
     (void)a;
     (void)u;
@@ -4149,7 +4149,7 @@ static long init(const char *args, const char *event, void *__user r)
     (void)event;
     (void)r;
 
-    pr_info("[selinux_hook_diag9a] init entered\n");
+    pr_info("[selinux_hook_diag10a] init entered\n");
 
     fill_clean_status_bytes(g_clean_status_bytes);
     resolve_required_symbols_once();
@@ -4231,37 +4231,38 @@ static long init(const char *args, const char *event, void *__user r)
     security_read_policy_compat_fn =
         (void *)security_read_policy_fn;
 
-    pr_info("[selinux_hook_diag9a] helper resolution completed\n");
+    pr_info("[selinux_hook_diag10a] helper resolution completed\n");
 
     if (security_read_policy_fn && !selinux_49_compat_path()) {
-        pr_info("[selinux_hook_diag9a] about to snapshot clean policy\n");
+        pr_info("[selinux_hook_diag10a] about to snapshot clean policy\n");
         snapshot_clean_policy("module_init");
-        pr_info("[selinux_hook_diag9a] snapshot returned\n");
+        pr_info("[selinux_hook_diag10a] snapshot returned\n");
     }
 
-    pr_warn("[selinux_hook_diag9a] M127F compat: skipping security_read_policy inline hook\n");
-    pr_warn("[selinux_hook_diag9a] M127F compat: skipping simple_read_from_buffer inline hook\n");
-    pr_warn("[selinux_hook_diag9a] M127F compat: skipping sel_read_handle_status inline hook\n");
-    pr_warn("[selinux_hook_diag9a] M127F compat: skipping sel_mmap_handle_status inline hook\n");
-    pr_info("[selinux_hook_diag9a] selinux_status_update_seqlock absent on M127F, skipping\n");
+    pr_warn("[selinux_hook_diag10a] M127F compat: skipping security_read_policy inline hook\n");
+    pr_warn("[selinux_hook_diag10a] M127F compat: skipping simple_read_from_buffer inline hook\n");
+    pr_warn("[selinux_hook_diag10a] M127F compat: skipping sel_read_handle_status inline hook\n");
+    pr_warn("[selinux_hook_diag10a] M127F compat: skipping sel_mmap_handle_status inline hook\n");
+    pr_info("[selinux_hook_diag10a] selinux_status_update_seqlock absent on M127F, skipping\n");
+    pr_warn("[selinux_hook_diag10a] M127F compat: skipping selinux_status_update_policyload inline hook\n");
 
-    addr = (unsigned long)lookup_name_optional_suffix("selinux_status_update_policyload");
+    addr = (unsigned long)lookup_name_optional_suffix("security_setprocattr");
     if (!addr) {
-        pr_warn("[selinux_hook_diag9a] selinux_status_update_policyload missing; cannot continue test\n");
+        pr_warn("[selinux_hook_diag10a] security_setprocattr missing; cannot continue test\n");
         return -ENOENT;
     }
 
     g_funcs[g_hooks++] = (void *)addr;
 
-    pr_info("[selinux_hook_diag9a] about to install NO-OP selinux_status_update_policyload hook argc=2\n");
+    pr_info("[selinux_hook_diag10a] about to install NO-OP security_setprocattr hook argc=3\n");
 
-    hook_wrap((void *)addr, 2,
-              before_selinux_status_update_policyload_diag9a,
+    hook_wrap((void *)addr, 3,
+              before_security_setprocattr_diag10a,
               NULL,
               NULL);
 
-    pr_info("[selinux_hook_diag9a] NO-OP selinux_status_update_policyload hook installed\n");
-    pr_info("[selinux_hook_diag9a] init complete; exactly %d hook(s) installed\n",
+    pr_info("[selinux_hook_diag10a] NO-OP security_setprocattr hook installed\n");
+    pr_info("[selinux_hook_diag10a] init complete; exactly %d hook(s) installed\n",
             g_hooks);
 
     return 0;
